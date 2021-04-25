@@ -3,6 +3,8 @@ import argparse
 import torch
 from torchvision import utils
 from model import Generator
+
+from swagan import Generator as SGenerator
 from tqdm import tqdm
 
 
@@ -43,6 +45,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--pics", type=int, default=20, help="number of images to be generated"
     )
+
+    # try to generate images from SWAGAN
+    parser.add_argument("--arch", type=str, default="sty", help="model to generate images from")
+
     parser.add_argument("--truncation", type=float, default=1, help="truncation ratio")
     parser.add_argument(
         "--truncation_mean",
@@ -65,15 +71,33 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    print(f"args.arch is: {args.arch}")
+
     args.latent = 512
     args.n_mlp = 8
 
-    g_ema = Generator(
-        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
-    ).to(device)
-    checkpoint = torch.load(args.ckpt)
+    # load stylegan generator by default
+    swag = 0
+    # load swagan generator
+    if args.arch == "swa":
+        swag = 1
 
-    g_ema.load_state_dict(checkpoint["g_ema"])
+    if swag: # load swagan generator if arch from args is "swa"
+        print("loading swagan generator...")
+        g_ema = SGenerator(
+            args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
+        ).to(device)
+        checkpoint = torch.load(args.ckpt)
+
+        g_ema.load_state_dict(checkpoint["g_ema"])
+    else:
+        print("loading stylegan generator...")
+        g_ema = Generator(
+            args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
+        ).to(device)
+        checkpoint = torch.load(args.ckpt)
+
+        g_ema.load_state_dict(checkpoint["g_ema"])
 
     if args.truncation < 1:
         with torch.no_grad():
